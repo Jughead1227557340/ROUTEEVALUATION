@@ -1,0 +1,298 @@
+﻿#include "CloudCompute.h"
+
+CalPosiPoint::CalPosiPoint()
+{
+    int i;
+    int Num[15] = {0, 0, 1, 2, 2, 1, 2, 2, 3, 3, 2, 2, 3, 3, 4};
+    c = Rcs; // 获取雷达截面积的数值
+    d = Maxd; // 获得最大距离约束的数值
+    
+    //武器隐藏性能的云模型参数
+    double Ex1[5] = {0.4, 1.5, 2.7, 3.9, 5.0}; // 云模型的期望
+    double En1[5] = {0.4, 0.3, 0.3, 0.3, 0.6}; // 云模型的方差
+    
+    // 最大距离约束的云模型参数
+    double Ex2[3] = {1.7, 2.3, 2.75}; // 云模型的期望
+    double En2[3] = {0.15, 0.1, 0.15}; //云模型的方差
+    
+    // 引导点距离威胁区边界的距离的云模型参数
+    double Ex3[5] = {0, 0.25, 0.5, 0.75, 1}; //云模型的期望
+    double En3[5] = {0.08, 0.07, 0.06, 0.07, 0.08}; // 云模型的方差
+    
+    double Ex4[5]={1.7,2.0,2.2,2.4,2.75};// 云模型的期望
+    double En4[5]={0.085,0.075,0.05,0.075,0.085};// 云模型的方差
+    
+    //建立模糊语言的云模型
+    //武器隐藏性能和距离的云模型
+    for (int i = 0; i <5; i++)
+    {
+        Hide[i].Ex = Ex1[i];
+        Hide[i].En = En1[i];
+        Hide[i].He = He1;
+        Distance[i].Ex = Ex3[i];
+        Distance[i].En = En3[i];
+        Distance[i].He = He2;
+        Importance1[i].Ex = Ex4[i];
+        Importance1[i].En = En4[i];
+        Importance1[i].He = He3 / 2;
+    }
+    
+    //最大距离约束的云模型
+    for (int i = 0; i < 3; i++)
+    {
+        Importance[i].Ex = Ex2[i];
+        Importance[i].En = En2[i];
+        Importance[i].He = He3;
+    }
+    
+    // 对所有云定义其升降属性
+    for (int i = 1; i < 4; i++)
+    {
+        Hide[i].Rf = 0;
+        Distance[i].Rf = 0;
+        Importance1[i].Rf = 0; //处于中间位置的云是全云
+    }
+    Hide[0].Rf = -1; // 语气词“很好”是半降云
+    Hide[4].Rf = 1;  // 语气词“很差”是半升云
+    
+    Distance[0].Rf=-1; // 语气词"很近"是半降云 
+    Distance[4].Rf=1; // 语气词"很远"是半升云
+    
+    Importance[0].Rf=-1; // 语气词"重要"是半降云 
+    Importance[1].Rf=0; // 语气词"一般"是全云
+	Importance[2].Rf=1; // 语气词"不重要"是半升云
+	Importance1[0].Rf=-1; // 语气词"重要"是半降云 
+	Importance1[4].Rf=1; // 语气词"不重要"是半升云
+    
+    // 建立模糊规则知识库，规则的前件
+    for (int i = 0; i < 5; i++)
+    {
+        FuzzyInference[i].Hide_0 = Hide[i];
+        FuzzyInference[i].Import = Importance[0];
+        FuzzyInference[i].Strength = 0.0;
+        FuzzyInference1[i].Import = Importance1[i];
+        FuzzyInference1[i].Dist = Distance[i];
+        FuzzyInference1[i].Strength = 0.0;
+    }
+    for (int i = 5; i < 10; i++)
+    {
+        FuzzyInference[i].Hide_0 = Hide[i - 5];
+        FuzzyInference[i].Import = Importance[1];
+        FuzzyInference[i].Strength = 0.0;
+    }
+    for (int i = 10; i <15; i++)
+    {
+        FuzzyInference[i].Hide_0=Hide[i-10];
+		FuzzyInference[i].Import=Importance[2];  
+		FuzzyInference[i].Strength=0;
+    }
+    
+    // 模糊规则知识库规则的后件
+    for (int i = 0; i < N; i++)
+    {
+        FuzzyInference[i].Dist = Distance[Num[i]];
+    }
+}
+
+// 生成(0~1)随机数
+double CalPosiPoint:: Random1(void)
+{
+    int a = 0;
+    double r;
+    a = rand() % 32767;
+    r = (a + 0.00) / 32767.00;
+    return r;
+}
+
+// 随机生成正态随机数
+double CalPosiPoint::NormRandom(double mu, double sigma)
+{
+    double sum = 0.0;
+    for(int i = 1; i <= 20; i++)
+    {
+        sum += Random1();
+    }
+    return ((sum - 10.00) * sigma + mu);
+}
+
+// 单因素的条件云发生器求隶属度
+double CalPosiPoint::Forwardgenerator(Inference1 Infer1)
+{
+    double a, En1, u2;
+    
+    // 根据x云发生器进行计算，求得随机隶属度
+    // 计算最大距离约束的激励强度
+    
+    if (Infer1.Import.Rf == 0) //全云
+    {
+        if ( (d > (Infer1.Import.Ex + 3 * Infer1.Import.En)) || (d < Infer1.Import.Ex - 3 * Infer1.Import.En))
+        {
+            return 0.0;
+        }
+        else
+        {
+            En1 = NormRandom(Infer1.Import.En, Infer1.Import.He);
+            a = - (d - Infer1.Import.Ex) * (d - Infer1.Import.Ex);
+            u2 = exp(a/2/En1/En1);
+        }
+    }
+    else if (Infer1.Import.Rf == 1) //半升云
+    {
+        // 如果在期望的右侧
+        if (d > Infer1.Import.Ex)
+        {
+            u2 = 1.0;
+        }
+        else
+        {
+            En1 = NormRandom(Infer1.Import.En, Infer1.Import.He);
+            a = - (d - Infer1.Import.Ex) * (d - Infer1.Import.Ex);
+            u2 = exp(a/2/En1/En1);
+        }
+    }
+    else //如果是半降云
+    {
+        if (d < Infer1.Import.Ex)
+        {
+            u2 = 1.0;
+        }
+        else
+        {
+            En1 = NormRandom(Infer1.Import.En, Infer1.Import.He);
+            a = - (d - Infer1.Import.Ex) * (d - Infer1.Import.Ex);
+            u2 = exp(a/2/En1/En1);
+        }
+    }
+    return u2;
+}
+// x多因素的条件云发生器求隶属度
+double CalPosiPoint::Forwardgenerator(Inference Infer)
+{
+    double u1, u2, a, En1, u;
+
+    /////////根据X云发生器进行计算，求得随机隶属度
+
+    /////////计算因素一隐藏性能的激励强度
+    if (Infer.Hide_0.Rf==0)/////////如果是全云
+    {
+        /////////如果在均值的3倍方差之外，则隶属度为零
+        if ( (c>(Infer.Hide_0.Ex+3*Infer.Hide_0.En)||c<(Infer.Hide_0.Ex-3*Infer.Hide_0.En))&&(d>(Infer.Import.Ex+3*Infer.Import.En)||d<(Infer.Import.Ex-3*Infer.Import.En)))
+            return 0.0;
+        ////////计算随机隶属度
+        En1=NormRandom(Infer.Hide_0.En,Infer.Hide_0.He);
+        a=-(c-Infer.Hide_0.Ex)*(c-Infer.Hide_0.Ex);
+        u1=exp(a/2/En1/En1);
+
+    }
+
+    else if (Infer.Hide_0.Rf==1)//////如果是半升云
+    {
+
+        if(c>Infer.Hide_0.Ex)/////如果在期望的右侧
+            u1=1.0;
+        else
+        {
+            En1=NormRandom(Infer.Hide_0.En,Infer.Hide_0.He);
+            a=-(c-Infer.Hide_0.Ex)*(c-Infer.Hide_0.Ex);
+            u1=exp(a/2/En1/En1);
+        }
+    }
+    //////////如果是半降云
+    else
+    {
+        /////如果在期望的左侧
+        if(c<Infer.Hide_0.Ex)
+            u1=1.0;
+        else
+        {
+            En1=NormRandom(Infer.Hide_0.En,Infer.Hide_0.He);
+            a=-(c-Infer.Hide_0.Ex)*(c-Infer.Hide_0.Ex);
+            u1=exp(a/2/En1/En1);
+        }
+    }
+
+
+    //////////计算因素二最大距离约束的激励强度
+    if (Infer.Import.Rf==0)
+    {
+        En1=NormRandom(Infer.Import.En,Infer.Import.He);
+        a=-(d-Infer.Import.Ex)*(d-Infer.Import.Ex);
+        u2=exp(a/2/En1/En1);
+    }
+
+
+    else if (Infer.Import.Rf==1)	//////如果是半升云
+    {
+        /////如果在期望的右侧
+        if(d>Infer.Import.Ex)
+            u2=1.0;
+        else
+        {
+            En1=NormRandom(Infer.Import.En,Infer.Import.He);
+            a=-(d-Infer.Import.Ex)*(d-Infer.Import.Ex);
+            u2=exp(a/2/En1/En1);
+        }
+    }
+       //////////如果是半降云
+    else
+    {
+        /////如果在期望的左侧
+        if(d<Infer.Import.Ex)
+            u2=1.0;
+        else
+        {
+            En1=NormRandom(Infer.Import.En,Infer.Import.He);
+            a=-(d-Infer.Import.Ex)*(d-Infer.Import.Ex);
+            u2=exp(a/2/En1/En1);
+        }
+    }
+    u=u1*u2;
+    return u;
+}
+// 根据隶属度激励y条件云
+double CalPosiPoint::BackwardGenerator(double u, Cloudmodel Import, Cloudmodel Dist)
+{
+    double d1;
+    // 根据不同的情况计算合适的值
+    d1 = Dist.Ex + sqrt(-2 * log(u)) * Dist.En;
+    // 对隶属度为1时特殊处理
+    if (u >= 1)
+    {
+        //如果是半降云
+        if (Dist.Rf == -1)
+        {
+            return 0.0;
+        }
+        else if (Dist.Rf == 1)
+        {
+            return 1.0;
+        }
+        else
+        {
+            
+        }
+    }
+    
+    if (d < Import.Ex) // 根据最大距离约束的升降性来判断
+        d1 = Dist.Ex - sqrt(-2 * log(u)) * Dist.En;
+    return d1;
+    \
+}
+// 对所有模糊规则按隶属度进行降序排列
+void CalPosiPoint::Sort()
+{
+    Inference Infer;
+    int i, j;
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = i + 1; j < N; j++)
+        {
+            if (FuzzyInference[i].Strength<FuzzyInference[j].Strength)
+            {
+				Infer=FuzzyInference[i];
+                FuzzyInference[i]=FuzzyInference[j];
+                FuzzyInference[j]=Infer;
+			}
+        }
+    }
+}
