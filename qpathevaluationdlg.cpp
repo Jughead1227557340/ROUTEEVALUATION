@@ -391,9 +391,9 @@ void QPathEvaluationDlg::SortRouteOverall()
        if (flag == 0)
        {
            //确定帕累托最优解集
-           qDebug() << "******开始寻找帕累托最优解集******";
+           qDebug() << "*********开始寻找帕累托最优解集*********";
            SearchPeratoSet();
-           qDebug() << "******帕累托最优解集确定完毕******";
+           qDebug() << "*********帕累托最优解集确定完毕*********";
            qDebug() << "******开始对帕累托最优解集进行排序******";
            SortPeratoSet();
            qDebug() << "******对帕累托最优解集进行排序完毕******";
@@ -432,23 +432,23 @@ void QPathEvaluationDlg::SearchPeratoSet()
 {
     if (0 == m_pathEvaluationList.size())
     {
-        qDebug() << "航迹长度为空！！！";
+        qDebug() << "The number of the routes in the waiting-to-be-evaluated list is empty ";
         return ;
     }
-    //确定新的帕累托解集之前，先将原来的帕累托解集清空
+    //clean out the vector of Pareto Set
     m_ParetoOptimalSet.clear();
-    //对航迹列表里的航迹进行遍历，从而得到帕累托最优解集
+    //traverse each and every route in the waiting-to-be-evaluated  list and delete the routes that are not on the Pareto front 
     for (int i = 0; i < m_pathEvaluationList.size(); i++)
     {
-        if (i == 0)
+        if (0 == i)
         {
-            //第一条航迹不可能被支配
+            //第一条航迹不可能被支配，故直接加入帕累托最优解集
             m_ParetoOptimalSet.push_back(m_pathEvaluationList.at(i));
         }
         else
         {
             int flag = 1; //标志
-            //如果节点i为被支配的点，则跳过
+            //如果节点i为被支配的点，则跳过,不加入到帕累托解集中
             for (int j = 0; j < i; j++)
             {
                 if ((m_pathEvaluationList.at(i)->m_routeLength > m_pathEvaluationList.at(j)->m_routeLength)
@@ -458,6 +458,7 @@ void QPathEvaluationDlg::SearchPeratoSet()
                 {
                     //只要找到下标i的一个支配解就退出
                     flag = 0;
+                    //退出循环
                     break;
                 }                   
             }
@@ -468,10 +469,10 @@ void QPathEvaluationDlg::SearchPeratoSet()
             }
             else
             {
-                //删除被节点i所支配的点
+                //删除被节点i所支配的所有解
                 for (int j = 0; j < i; j++)
                 {
-                    //当帕累托解集中有解被第i个解所支配，则一处
+                    
                     if ((m_pathEvaluationList.at(i)->m_routeLength < m_pathEvaluationList.at(j)->m_routeLength)
                             && (m_pathEvaluationList.at(i)->m_MobileConsumption < m_pathEvaluationList.at(j)->m_MobileConsumption)
                                 && (m_pathEvaluationList.at(i)->m_survivability > m_pathEvaluationList.at(j)->m_survivability)
@@ -480,6 +481,7 @@ void QPathEvaluationDlg::SearchPeratoSet()
                         m_ParetoOptimalSet.remove(j);
                     }
                 }
+                //将当前航迹i加入到帕累托解集中
                 m_ParetoOptimalSet.push_back(m_pathEvaluationList.at(i));
             }
         }
@@ -510,12 +512,15 @@ void QPathEvaluationDlg::SortPeratoSet()
     //Total Angle Penalty Score of each route from 1 to N and its Dominated Times Count
     QVector<double> TAPS;
     QVector<double> DTC;
-    //求航迹长度最大值
+    qDebug() << "***步骤1，找到各个属性的最大最小值***";
+    //step_1,对每条航迹的各个属性进行标准化处理
+    //求航迹长度的最大最小值
     for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
     {
         if (i == 0)
         {
             MaxRouteLength = m_ParetoOptimalSet.at(i)->m_routeLength;
+            MinRouteLength = m_ParetoOptimalSet.at(i)->m_routeLength;
         }
         else
         {
@@ -523,28 +528,22 @@ void QPathEvaluationDlg::SortPeratoSet()
             {
                 MaxRouteLength = m_ParetoOptimalSet.at(i)->m_routeLength;
             }
-        }
-    }
-    //求航迹长度最小值
-    for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
-    {
-        if (i == 0)
-        {
-            MinRouteLength = m_ParetoOptimalSet.at(i)->m_routeLength;
-        }
-        else
-        {
-            if (m_ParetoOptimalSet.at(i)->m_routeLength < MinRouteLength)
+            else if (m_ParetoOptimalSet.at(i)->m_routeLength < MinRouteLength)
             {
                 MinRouteLength = m_ParetoOptimalSet.at(i)->m_routeLength;
             }
+            else
+            {
+                
+            }
         }
     }
-    //求机动消耗最小值
+    //求机动消耗的最大最小值
     for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
     {
         if (i == 0)
         {
+            MaxMobileConsume = m_ParetoOptimalSet.at(i)->m_MobileConsumption;
             MinMobileConsume = m_ParetoOptimalSet.at(i)->m_MobileConsumption;
         }
         else
@@ -553,43 +552,22 @@ void QPathEvaluationDlg::SortPeratoSet()
             {
                 MinMobileConsume = m_ParetoOptimalSet.at(i)->m_MobileConsumption;
             }
-        }
-    }
-    //求机动消耗最大值
-    for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
-    {
-        if (i == 0)
-        {
-            MaxMobileConsume = m_ParetoOptimalSet.at(i)->m_MobileConsumption;
-        }
-        else
-        {
-            if (m_ParetoOptimalSet.at(i)->m_MobileConsumption > MaxMobileConsume)
+            else if (m_ParetoOptimalSet.at(i)->m_MobileConsumption > MaxMobileConsume)
             {
                 MaxMobileConsume = m_ParetoOptimalSet.at(i)->m_MobileConsumption;
             }
+            else
+            {
+                
+            }
         }
     }
-    //求突防概率最大值
+    //求突防概率的最大最小值
     for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
     {
         if (i == 0)
         {
             MaxSurviveProb = m_ParetoOptimalSet.at(i)->m_survivability;
-        }
-        else
-        {
-            if (m_ParetoOptimalSet.at(i)->m_survivability > MaxSurviveProb)
-            {
-                MaxSurviveProb = m_ParetoOptimalSet.at(i)->m_survivability;
-            }
-        }
-    }
-    //求突防概率最小值
-    for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
-    {
-        if (i == 0)
-        {
             minSurviveProb = m_ParetoOptimalSet.at(i)->m_survivability;
         }
         else
@@ -598,13 +576,22 @@ void QPathEvaluationDlg::SortPeratoSet()
             {
                 minSurviveProb = m_ParetoOptimalSet.at(i)->m_survivability;
             }
+            else if (m_ParetoOptimalSet.at(i)->m_survivability > MaxSurviveProb)
+            {
+                MaxSurviveProb = m_ParetoOptimalSet.at(i)->m_survivability;
+            }
+            else
+            {
+                
+            }
         }
     }
-    //求匹配概率最大值
+    //求匹配概率的最大最小值
     for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
     {
         if (i == 0)
         {
+            MinMatchLevel = m_ParetoOptimalSet.at(i)->m_matchingupLevel;
             MaxMatchLevel = m_ParetoOptimalSet.at(i)->m_matchingupLevel;
         }
         else
@@ -613,36 +600,32 @@ void QPathEvaluationDlg::SortPeratoSet()
             {
                 MaxMatchLevel = m_ParetoOptimalSet.at(i)->m_matchingupLevel;
             }
-        }
-    }
-    //求匹配概率最小值
-    for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
-    {
-        if (i == 0)
-        {
-            MinMatchLevel = m_ParetoOptimalSet.at(i)->m_matchingupLevel;
-        }
-        else
-        {
-            if (m_ParetoOptimalSet.at(i)->m_matchingupLevel < MinMatchLevel)
+            else if (m_ParetoOptimalSet.at(i)->m_matchingupLevel < MinMatchLevel)
             {
                 MinMatchLevel = m_ParetoOptimalSet.at(i)->m_matchingupLevel;
             }
+            else
+            {
+                
+            }
         }
     }
+    qDebug() << "***步骤2，将每条航迹的每个属性标准化***";
     //将各属性标准化,并添加到列表中
+    //对每个属性而言，值越大越差
     for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
     {
-
         m_ParetoOptimalSet.at(i)->m_routeLength = (m_ParetoOptimalSet.at(i)->m_routeLength - MinRouteLength) / (MaxRouteLength - MinRouteLength);
+        //将每个属性分开存储到一个新的列表里
         RouteLength.push_back(m_ParetoOptimalSet.at(i)->m_routeLength);
-        m_ParetoOptimalSet.at(i)->m_MobileConsumption = (m_ParetoOptimalSet.at(i)->m_routeLength - MinMobileConsume) / (MaxMobileConsume - MinMobileConsume);
+        m_ParetoOptimalSet.at(i)->m_MobileConsumption = (m_ParetoOptimalSet.at(i)->m_MobileConsumption - MinMobileConsume) / (MaxMobileConsume - MinMobileConsume);
         MobileConsume.push_back(m_ParetoOptimalSet.at(i)->m_MobileConsumption);
         m_ParetoOptimalSet.at(i)->m_survivability = (MaxSurviveProb - m_ParetoOptimalSet.at(i)->m_survivability) / (MaxSurviveProb - minSurviveProb);
         SurviveProb.push_back(m_ParetoOptimalSet.at(i)->m_survivability);
         m_ParetoOptimalSet.at(i)->m_matchingupLevel = (MaxMatchLevel - m_ParetoOptimalSet.at(i)->m_matchingupLevel) / (MaxMatchLevel - MinMatchLevel);
         MatchLevel.push_back(m_ParetoOptimalSet.at(i)->m_matchingupLevel);
     }
+    qDebug() << "***步骤3，求出每个属性的门限角***";
     //求各属性的门限角
     //先将各属性列表排序，求出interquartile以及IQm，求航迹长度的门限角
     //排序
