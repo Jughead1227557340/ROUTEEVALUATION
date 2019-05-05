@@ -36,14 +36,16 @@ QPathEvaluation::~QPathEvaluation()
 {
 
 }
-void QPathEvaluation::operator = (const QPathEvaluation & temp)
+void QPathEvaluation::operator=(const QPathEvaluation & temp)
 {
-    m_RouteNumber = temp.m_RouteNumber;
-    m_routeLength = temp.m_routeLength;
-    m_MobileConsumption = temp.m_MobileConsumption;
-    m_survivability = temp.m_survivability;
-    m_matchingupLevel = temp.m_matchingupLevel;
-    m_pareto.score = temp.m_pareto.score;
+    this->m_RouteNumber = temp.m_RouteNumber;
+    this->m_routeLength = temp.m_routeLength;
+    this->m_MobileConsumption = temp.m_MobileConsumption;
+    this->m_survivability = temp.m_survivability;
+    this->m_matchingupLevel = temp.m_matchingupLevel;
+    this->m_pareto.DominatedTimesCount = temp.m_pareto.DominatedTimesCount;
+    this->m_pareto.TotalAnglePenaltyScore = temp.m_pareto.TotalAnglePenaltyScore;
+    this->m_pareto.score = temp.m_pareto.score;
 }
 
 //计算整个航迹的长度
@@ -368,6 +370,7 @@ double QPathEvaluation::CalcOverallEvaluation()
     //匹配概率标准化处理，匹配概率本来就是0~1之间的数，故不需要标准化处理
     return (m_routeLength * weightLength + m_MobileConsumption * weightConsume + m_survivability * weightSurvive + m_matchingupLevel * weightMatchup);
 }
+
 
 
 //设置转弯点,添加转弯起始点和转弯结束点
@@ -829,6 +832,7 @@ ThreatType ThreatTypeTransfer(QString type)
         qDebug() << "ERROR!!!THREAT AREA TYPE!!!";
     }
 }
+
 
 
 

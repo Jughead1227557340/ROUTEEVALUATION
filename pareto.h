@@ -3,6 +3,7 @@
 
 struct vectorOf4D
 {
+public:
     double length;
     double consume;
     double survive;
@@ -10,11 +11,12 @@ struct vectorOf4D
 };
 struct Pareto
 {
+public:
     //角惩罚分数
     double TotalAnglePenaltyScore;
     //被支配的次数
     int DominatedTimesCount;
-    //最后的得分
+    //最终得分
     double score;
 };
 

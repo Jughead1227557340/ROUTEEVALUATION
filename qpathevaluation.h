@@ -73,8 +73,9 @@ public:
     //设置转弯点,添加转弯起始点和转弯结束点
     bool SetTurnPoint();
     //等号运算符重载
-    void operator = (const QPathEvaluation & temp);
+    void operator=(const QPathEvaluation & temp);
 };
+
 typedef QVector<QPathEvaluation *> PathEvaluationList;
 
 //威胁区类型转换
