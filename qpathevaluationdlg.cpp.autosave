@@ -107,8 +107,9 @@ void QPathEvaluationDlg::Read_RouteFile()
     qDebug() << "************开始读取航迹文件******************";
     for (int i = 0; i < nRouteCount; ++i)
     {
+        //清空临时航迹
+        pTempPathEvaluation->m_routeLine.clear();
         //打开航迹文件
-
         QDomDocument XMLDocument;
         QFile RouteFile(RouteFileDirectories.at(i));
         //-----------------------------保护-----------------------//
@@ -162,6 +163,7 @@ void QPathEvaluationDlg::Read_RouteFile()
                  {
                      //读取转弯点的转弯角度
                      pTempNavigationNode->turnAngle = RouteNodesList.at(8).toElement().text().toDouble();
+                     qDebug() << "转弯角度为：" << pTempNavigationNode->turnAngle;
                      //读取转弯点的转弯半径
                      pTempNavigationNode->r = RouteNodesList.at(9).toElement().text().toDouble();
                  }
@@ -241,7 +243,7 @@ void QPathEvaluationDlg::EvaluationRoute1by1()
         QDomNodeList ThreatAreaList = DomThreatArea.toElement().childNodes(); //添加子节点列表,威胁区的个数+1
         //1.威胁区的个数
         int ThreatNumber = ThreatAreaList.at(0).toElement().text().toInt();
-        qDebug() << "威胁区的个数为：" << ThreatNumber;
+        //qDebug() << "威胁区的个数为：" << ThreatNumber;
         //2.循环威胁区信息
         for (int i = 0; i < ThreatNumber; i++)
         {
@@ -249,7 +251,7 @@ void QPathEvaluationDlg::EvaluationRoute1by1()
             QDomNodeList subThreatAreaList = subThreatArea.toElement().childNodes(); //添加5个子节点列表
             //读取第i+1个威胁区的类型
             QString threattype1 = subThreatAreaList.at(0).toElement().text();
-            qDebug() << "威胁区类型为：" << threattype1;
+            //qDebug() << "威胁区类型为：" << threattype1;
             tempThreatArea.threatType = ThreatTypeTransfer(threattype1);
             //qDebug() << "威胁区类型为：" << tempThreatArea.threatType;
             //读取第i+1个威胁区的xy坐标
@@ -370,8 +372,9 @@ void QPathEvaluationDlg::EvaluationRoute1by1()
 //航迹评价结果综合排序
 void QPathEvaluationDlg::SortRouteOverall()
 {
+   qDebug() << "开始对航迹进行综合评价排序";
    int flag = 0;
-   for (int i = 0; i < m_ParetoOptimalSet.size(); ++i)
+   for (int i = 0; i < m_pathEvaluationList.size(); ++i)
    {
        if (m_dataModel->item(i, 1) != nullptr)
        {
@@ -610,7 +613,15 @@ void QPathEvaluationDlg::SortPeratoSet()
             }
         }
     }
+
     qDebug() << "***步骤2，将每条航迹的每个属性标准化***";
+    for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
+    {
+        qDebug() << "The " << i << "th routes normalized Routelength is :" << m_ParetoOptimalSet.at(i)->m_routeLength;
+        qDebug() << "The " << i << "th routes normalized Consumption is :" << m_ParetoOptimalSet.at(i)->m_MobileConsumption;
+        qDebug() << "The " << i << "th routes normalized survivability is :" << m_ParetoOptimalSet.at(i)->m_survivability;
+        qDebug() << "The " << i << "th routes normalized matchup is :" << m_ParetoOptimalSet.at(i)->m_matchingupLevel;
+    }
     //将各属性标准化,并添加到列表中
     //对每个属性而言，值越大越差
     for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
@@ -625,27 +636,36 @@ void QPathEvaluationDlg::SortPeratoSet()
         m_ParetoOptimalSet.at(i)->m_matchingupLevel = (MaxMatchLevel - m_ParetoOptimalSet.at(i)->m_matchingupLevel) / (MaxMatchLevel - MinMatchLevel);
         MatchLevel.push_back(m_ParetoOptimalSet.at(i)->m_matchingupLevel);
     }
+    for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
+    {
+        qDebug() << "The " << i << "th routes normalized Routelength is :" << m_ParetoOptimalSet.at(i)->m_routeLength;
+        qDebug() << "The " << i << "th routes normalized Consumption is :" << m_ParetoOptimalSet.at(i)->m_MobileConsumption;
+        qDebug() << "The " << i << "th routes normalized survivability is :" << m_ParetoOptimalSet.at(i)->m_survivability;
+        qDebug() << "The " << i << "th routes normalized matchup is :" << m_ParetoOptimalSet.at(i)->m_matchingupLevel;
+    }
     qDebug() << "***步骤3，求出每个属性的门限角***";
     //求各属性的门限角
     //先将各属性列表排序，求出interquartile以及IQm，求航迹长度的门限角
     //排序
     BubbleSort(RouteLength);
-    //求出interQuartile
+    //find out the value of interQuartile point
     double quartileValueOfLength = RouteLength.at((RouteLength.size() + 1) / 4);
-    //求出平均距离
+    //求出相邻两个属性之间距离的平均距离
     double AverageDistanceOfLength = 0.0;
-    for (int i = 0; i < RouteLength.size() - 1; i++)
+    if (RouteLength.size() == 1)
     {
-        if (RouteLength.size() == 1)
-        {
-
-        }
-        else
+        qDebug() << "帕累托解集中只有一个待评价航迹";
+    }
+    else
+    {
+        for (int i = 0; i < RouteLength.size() - 1; i++)
         {
             AverageDistanceOfLength += RouteLength.at(i + 1) - RouteLength.at(i);
         }
     }
     AverageDistanceOfLength = AverageDistanceOfLength / (RouteLength.size() - 1);
+
+    //求出门限角
     thresholdAngleOfLength = atan2(AverageDistanceOfLength, quartileValueOfLength);
     //求机动消耗的门限角
     //排序
@@ -654,18 +674,19 @@ void QPathEvaluationDlg::SortPeratoSet()
     double quartileValueOfConsume = MobileConsume.at((MobileConsume.size() + 1) / 4);
     //求平均距离
     double AverageDistanceOfConsume = 0.0;
-    for (int i = 0; i < MobileConsume.size() - 1; i++)
+    if (1 == MobileConsume.size())
     {
-        if (MobileConsume.size() == 1)
-        {
-
-        }
-        else
+        qDebug() << "帕累托解集中只有一个待评价航迹";
+    }
+    else
+    {
+        for (int i = 0; i < MobileConsume.size() - 1; i++)
         {
             AverageDistanceOfConsume += MobileConsume.at(i + 1) - MobileConsume.at(i);
         }
     }
     AverageDistanceOfConsume = AverageDistanceOfConsume / (MobileConsume.size() - 1);
+    //求出门限角
     thresholdAngleOfConsume = atan2(AverageDistanceOfConsume, quartileValueOfConsume);
     //求突防概率的门限角
     //排序
@@ -674,18 +695,19 @@ void QPathEvaluationDlg::SortPeratoSet()
     double quartileValueOfSurvive = SurviveProb.at((SurviveProb.size() + 1) / 4);
     //求平均距离
     double AverageDistanceOfSurvive = 0.0;
-    for (int i = 0; i < SurviveProb.size() - 1; i++)
+    if (1 == SurviveProb.size())
     {
-        if (SurviveProb.size() == 1)
-        {
-
-        }
-        else
+        qDebug() << "帕累托解集中只有一个待评价航迹";
+    }
+    else
+    {
+        for (int i = 0; i < SurviveProb.size() - 1; i++)
         {
             AverageDistanceOfSurvive += SurviveProb.at(i + 1) - SurviveProb.at(i);
         }
     }
     AverageDistanceOfSurvive = AverageDistanceOfSurvive / (SurviveProb.size() - 1);
+    //求出门限角
     thresholdAngleOfSurvive = atan2(AverageDistanceOfSurvive, quartileValueOfSurvive);
     //Calculate the angle-threshold value of matchingProbability
     //step_1, perform sorting
@@ -694,21 +716,22 @@ void QPathEvaluationDlg::SortPeratoSet()
     double quartileValueOfMatch = MatchLevel.at((MatchLevel.size() + 1) / 4);
     //step_3，calculate the average distance between two consecutive solutions
     double AverageDistanceOfMatch = 0.0;
-    for (int i = 0; i < MatchLevel.size() - 1; i++)
+    if (1 == MatchLevel.size())
     {
-        if (MatchLevel.size() == 1)
+        qDebug() << "帕累托解集中只有一个待评价航迹";
+    }
+    else
+    {
+        for (int i = 0; i < MatchLevel.size() - 1; i++)
         {
-
-        }
-        else
-        {
-            AverageDistanceOfMatch = MatchLevel.at(i + 1) - MatchLevel.at(i);
+            AverageDistanceOfMatch += MatchLevel.at(i + 1) - MatchLevel.at(i);
         }
     }
     AverageDistanceOfMatch = AverageDistanceOfMatch / (MatchLevel.size() - 1);
     //step_4, calculate the angle-threshold value based on the formula
     thresholdAngleOfMatch = atan2(AverageDistanceOfMatch, quartileValueOfMatch);
-    //Calculate the dominated-or-not relationship between every and each two solutions
+    //Calculate the dominated-or-not relationship between each two solutions for every objective
+    qDebug() << "***开始计算两两航迹之间的关系***";
     for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
     {
         for (int j = 0; j < m_ParetoOptimalSet.size(); j++)
@@ -719,31 +742,31 @@ void QPathEvaluationDlg::SortPeratoSet()
             }
             else
             {
-                //step_1, calculate the direction vector
+                //step_1, calculate the direction vector of the line from j to i
                 vectorOf4D directionVector;
                 directionVector.length = m_ParetoOptimalSet.at(i)->m_routeLength - m_ParetoOptimalSet.at(j)->m_routeLength;
                 directionVector.consume = m_ParetoOptimalSet.at(i)->m_MobileConsumption - m_ParetoOptimalSet.at(j)->m_MobileConsumption;
                 directionVector.survive = m_ParetoOptimalSet.at(i)->m_survivability - m_ParetoOptimalSet.at(j)->m_survivability;
                 directionVector.match = m_ParetoOptimalSet.at(i)->m_matchingupLevel = m_ParetoOptimalSet.at(j)->m_matchingupLevel;
-                //when a certain attribute of solution i is smaller than that of solution j, it is possible that solution i is dominated by solution j
-                //The first kind of situation about RouteLength
+                //when a certain attribute of solution i is smaller than that of solution j, it is possible that solution i is dominated by solution j for this objective
+                //The first type of situation about RouteLength
                 if (m_ParetoOptimalSet.at(i)->m_routeLength < m_ParetoOptimalSet.at(j)->m_routeLength)
                 {
                     //calculate the angle between two solutions for attribute of length
                     //the 3D plane equation is length = m_ParetoOptimalSet.at(j)->m_routeLength
                     //step_2, calculate the included angle based on the formula
                     double tempVariable = directionVector.length * directionVector.length + directionVector.consume * directionVector.consume + directionVector.survive * directionVector.survive + directionVector.match * directionVector.match;
-                    double AngleOfLength  = acos(directionVector.length * 1.0 / sqrt(tempVariable));
+                    double AngleOfLength  = asin(directionVector.length * 1.0 / sqrt(tempVariable));
 
                     if (AngleOfLength < thresholdAngleOfLength)
                     {
                         //first of all, DominatedTimesCount auto-add one
                         m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount++;
                         //calculate APD (Angle Penalty Degree) and PIR (Penalty Intensity Rate), respectively
-                        double APDOfLength = thresholdAngleOfLength - AngleOfLength;
+                        double APD_Length = thresholdAngleOfLength - AngleOfLength;
                         double temp = (RouteLength.at(i) - RouteLength.at(j)) / (RouteLength.at(0) - RouteLength.at(RouteLength.size() - 1));
-                        double PIROfLength = 1.0 / (temp * temp);
-                        m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore += APDOfLength * PIROfLength;
+                        double PIR_Length = 1.0 / (temp * temp);
+                        m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore += APD_Length * PIR_Length;
                     }
                 }
                 if (m_ParetoOptimalSet.at(i)->m_MobileConsumption < m_ParetoOptimalSet.at(j)->m_MobileConsumption)
@@ -751,17 +774,17 @@ void QPathEvaluationDlg::SortPeratoSet()
                     //calculate the angle between two solutions for attribute of consumption
                     //step_2, calculate the included angle based on the formula
                     double tempVariable = directionVector.length * directionVector.length + directionVector.consume * directionVector.consume + directionVector.survive * directionVector.survive + directionVector.match * directionVector.match;
-                    double AngleOfConsume  = acos(directionVector.consume * 1.0 / sqrt(tempVariable));
+                    double AngleOfConsume  = asin(directionVector.consume * 1.0 / sqrt(tempVariable));
 
                     if (AngleOfConsume < thresholdAngleOfConsume)
                     {
                         //first of all, DominatedTimesCount auto-add one
                         m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount++;
                         //calculate APD (Angle Penalty Degree) and PIR (Penalty Intensity Rate), respectively
-                        double APDOfConsume = thresholdAngleOfConsume - AngleOfConsume;
+                        double APD_Consume = thresholdAngleOfConsume - AngleOfConsume;
                         double temp = (MobileConsume.at(i) - MobileConsume.at(j)) / (MobileConsume.at(0) - MobileConsume.at(RouteLength.size() - 1));
-                        double PIROfConsume = 1.0 / (temp * temp);
-                        m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore += APDOfConsume * PIROfConsume;
+                        double PIR_Consume = 1.0 / (temp * temp);
+                        m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore += APD_Consume * PIR_Consume;
                     }
                 }
                 if (m_ParetoOptimalSet.at(i)->m_survivability < m_ParetoOptimalSet.at(j)->m_survivability)
@@ -769,17 +792,17 @@ void QPathEvaluationDlg::SortPeratoSet()
                     //calculate the angle between two solutions for objective of survivability
                     //step_2, calculate the included angle based on the formula
                     double tempVariable = directionVector.length * directionVector.length + directionVector.consume * directionVector.consume + directionVector.survive * directionVector.survive + directionVector.match * directionVector.match;
-                    double AngleOfSurvive  = acos(directionVector.survive * 1.0 / sqrt(tempVariable));
+                    double AngleOfSurvive  = asin(directionVector.survive * 1.0 / sqrt(tempVariable));
 
                     if (AngleOfSurvive < thresholdAngleOfSurvive)
                     {
                         //first of all, DominatedTimesCount auto-add one
                         m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount++;
                         //calculate APD (Angle Penalty Degree) and PIR (Penalty Intensity Rate), respectively
-                        double APDOfSurvive = thresholdAngleOfSurvive - AngleOfSurvive;
+                        double APD_Survive = thresholdAngleOfSurvive - AngleOfSurvive;
                         double temp = (SurviveProb.at(i) - SurviveProb.at(j)) / (SurviveProb.at(0) - SurviveProb.at(RouteLength.size() - 1));
-                        double PIROfSurvive = 1.0 / (temp * temp);
-                        m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore += APDOfSurvive * PIROfSurvive;
+                        double PIR_Survive = 1.0 / (temp * temp);
+                        m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore += APD_Survive * PIR_Survive;
                     }
                 }
                 if (m_ParetoOptimalSet.at(i)->m_matchingupLevel < m_ParetoOptimalSet.at(j)->m_matchingupLevel)
@@ -787,31 +810,35 @@ void QPathEvaluationDlg::SortPeratoSet()
                     //calculate the angle between two solutions for objective of Matching
                     //step_2, calculate the included angle based on the formula
                     double tempVariable = directionVector.length * directionVector.length + directionVector.consume * directionVector.consume + directionVector.survive * directionVector.survive + directionVector.match * directionVector.match;
-                    double AngleOfMatch  = acos(directionVector.match * 1.0 / sqrt(tempVariable));
+                    double AngleOfMatch  = asin(directionVector.match * 1.0 / sqrt(tempVariable));
 
                     if (AngleOfMatch < thresholdAngleOfMatch)
                     {
                         //first of all, DominatedTimesCount auto-add one
                         m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount++;
                         //calculate APD (Angle Penalty Degree) and PIR (Penalty Intensity Rate), respectively
-                        double APDOfMatch = thresholdAngleOfMatch - AngleOfMatch;
+                        double APD_Match = thresholdAngleOfMatch - AngleOfMatch;
                         double temp = (MatchLevel.at(i) - MatchLevel.at(j)) / (MatchLevel.at(0) - MatchLevel.at(RouteLength.size() - 1));
-                        double PIROfMatch = 1.0 / (temp * temp);
-                        m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore += APDOfMatch * PIROfMatch;
+                        double PIR_Match = 1.0 / (temp * temp);
+                        m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore += APD_Match * PIR_Match;
                     }
                 }
             }
         }
     }
-    //接下来需要对每个解的DominatedTimesCount和TotalAnglePenaltyScore进行标准化
+    qDebug() << "***两两航迹之间的关系计算完毕***";
+    //Then, mornalize the DominatedTimesCount and TotalAnglePenaltyScore of each solution or route
     int maxDominatedTimesCount;
     int minDominatedTimesCount;
     double maxTotalAnglePenaltyScore;
     double minTotalAnglePenaltyScore;
+    //求出DominatedTimesCount的最大最小值
+    qDebug() << "求出DominatedTimesCount以及TotalAnglePenaltyScore的最大最小值";
     for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
     {
         if (i == 0)
         {
+            minDominatedTimesCount = m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount;
             maxDominatedTimesCount = m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount;
         }
         else
@@ -820,28 +847,22 @@ void QPathEvaluationDlg::SortPeratoSet()
             {
                 maxDominatedTimesCount = m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount;
             }
-        }
-    }
-
-    for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
-    {
-        if (i == 0)
-        {
-            minTotalAnglePenaltyScore = m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount;
-        }
-        else
-        {
-            if (m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount < minDominatedTimesCount)
+            else if (m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount < minDominatedTimesCount)
             {
                 minDominatedTimesCount = m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount;
             }
+            else
+            {
+
+            }
         }
     }
-
+    //求出TotalAnglePenaltyScore的最大最小值
     for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
     {
         if (i == 0)
         {
+            maxTotalAnglePenaltyScore = m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore;
             minTotalAnglePenaltyScore = m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore;
         }
         else
@@ -850,47 +871,68 @@ void QPathEvaluationDlg::SortPeratoSet()
             {
                 minTotalAnglePenaltyScore = m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore;
             }
-        }
-    }
-
-    for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
-    {
-        if (i == 0)
-        {
-            maxTotalAnglePenaltyScore = m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore;
-        }
-        else
-        {
-            if (m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore > maxTotalAnglePenaltyScore)
+            else if (m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore > maxTotalAnglePenaltyScore)
             {
                 maxTotalAnglePenaltyScore = m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore;
             }
+            else
+            {
+
+            }
         }
     }
-    //接下来对每个节的属性标准化,并计算最终的分数
-    for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
+
+    qDebug() << "DominatedTimesCount以及TotalAnglePenaltyScore的最大最小值计算完毕";
+    qDebug() << "开始计算最终的得分";
+    //接下来对每个解的属性标准化,并计算最终的分数
+    if (m_ParetoOptimalSet.size() == 1)
     {
-        m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount = (m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount - minDominatedTimesCount) / (maxDominatedTimesCount - minDominatedTimesCount);
-        m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore = (m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore - minTotalAnglePenaltyScore) / (maxTotalAnglePenaltyScore - minTotalAnglePenaltyScore);
-        m_ParetoOptimalSet.at(i)->m_pareto.score = m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount * m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore;
     }
+    else
+    {
+
+        for (int i = 0; i < m_ParetoOptimalSet.size(); i++)
+        {
+            if(maxDominatedTimesCount ==  minDominatedTimesCount)
+            {
+                m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount = 1;
+            }
+            else
+            {
+                m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount = (m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount - minDominatedTimesCount) / (maxDominatedTimesCount - minDominatedTimesCount);
+            }
+            if (maxTotalAnglePenaltyScore == minTotalAnglePenaltyScore)
+            {
+                m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore = 1;
+            }
+            else
+            {
+                m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore = (m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore - minTotalAnglePenaltyScore) / (maxTotalAnglePenaltyScore - minTotalAnglePenaltyScore);
+            }
+            m_ParetoOptimalSet.at(i)->m_pareto.score = m_ParetoOptimalSet.at(i)->m_pareto.DominatedTimesCount * m_ParetoOptimalSet.at(i)->m_pareto.TotalAnglePenaltyScore;
+        }
+    }
+
+    qDebug() << "最终得分计算完毕";
     //根据计算得到的最终分数，对所有的解进行排序
     if (m_ParetoOptimalSet.size() >= 2)
     {
-        for (int i = 0; i < m_ParetoOptimalSet.size() -  1; i++)
+        for (int i = 0; i < m_ParetoOptimalSet.size() - 1; i++)
         {
+            //find out the minimum value by each circulation
             for (int j = i + 1; j < m_ParetoOptimalSet.size(); j++)
             {
                 if (m_ParetoOptimalSet.at(j)->m_pareto.score < m_ParetoOptimalSet.at(i)->m_pareto.score)
                 {
-                    QPathEvaluation temp = *m_ParetoOptimalSet.at(i);
+                    QPathEvaluation * temp = m_ParetoOptimalSet.at(i);
                     *m_ParetoOptimalSet.at(i) = *m_ParetoOptimalSet.at(j);
-                    *m_ParetoOptimalSet.at(j) = temp;
+                    *m_ParetoOptimalSet.at(j) = *temp;
                 }
             }
         }
     }
-    //对排好序的帕累托最优解集进行排序
+
+    //对排好序的帕累托最优解集进行显示
     for (int row = 0; row < m_ParetoOptimalSet.size(); row++)
     {
         if (m_ParetoOptimalSet.at(row)->m_routeLine.isEmpty())

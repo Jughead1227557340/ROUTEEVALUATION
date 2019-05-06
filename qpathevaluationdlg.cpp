@@ -107,8 +107,9 @@ void QPathEvaluationDlg::Read_RouteFile()
     qDebug() << "************开始读取航迹文件******************";
     for (int i = 0; i < nRouteCount; ++i)
     {
+        //清空临时航迹
+        pTempPathEvaluation->m_routeLine.clear();
         //打开航迹文件
-
         QDomDocument XMLDocument;
         QFile RouteFile(RouteFileDirectories.at(i));
         //-----------------------------保护-----------------------//
@@ -162,6 +163,7 @@ void QPathEvaluationDlg::Read_RouteFile()
                  {
                      //读取转弯点的转弯角度
                      pTempNavigationNode->turnAngle = RouteNodesList.at(8).toElement().text().toDouble();
+                     qDebug() << "转弯角度为：" << pTempNavigationNode->turnAngle;
                      //读取转弯点的转弯半径
                      pTempNavigationNode->r = RouteNodesList.at(9).toElement().text().toDouble();
                  }

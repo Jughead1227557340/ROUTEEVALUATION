@@ -381,36 +381,38 @@ bool QPathEvaluation::SetTurnPoint()
     {
         return false;
     }
-    //设置每个节点转弯角度
+    //设置每个节点的航向角
     for (int i = 0; i < m_routeLine.size(); i++)
     {
+        //目标点的转弯角度都为0
         if (i == m_routeLine.size() - 1)
         {
             m_routeLine.at(i)->angle = 0.0;
+            //m_routeLine.at(i)->r = 0.0;
         }
         else
         {
-            //
             double tempx_x = m_routeLine.at(i + 1)->x - m_routeLine.at(i)->x;
             double tempy_y = m_routeLine.at(i + 1)->y - m_routeLine.at(i)->y;
             m_routeLine.at(i)->angle = atan2(tempy_y, tempx_x);
         }
     }
-    //计算航迹长度
+    //计算相邻两航迹点之间的航迹长度
     for (int i = 0; i < m_routeLine.size(); i++)
     {
         if (i == 0)
         {
-            m_routeLine.at(i)->routelen = 0.0;
+            tempLength.push_back(0.0);
+            
         }
         else
         {
-            //
-            double tempx_x = abs(m_routeLine.at(i)->x - m_routeLine.at(i - 1)->x);
-            double tempy_y = abs(m_routeLine.at(i)->y - m_routeLine.at(i - 1)->y);
-            m_routeLine.at(i)->routelen = sqrt(tempx_x * tempx_x + tempy_y * tempy_y);
+            double tempx_x = m_routeLine.at(i)->x - m_routeLine.at(i - 1)->x;
+            double tempy_y = m_routeLine.at(i)->y - m_routeLine.at(i - 1)->y;
+            tempLength.push_back(sqrt(tempx_x * tempx_x + tempy_y * tempy_y));
         }
     }
+    
     int tempCurrentPosition; //当前点在航迹数组的位置
     double tempTurnRadius; //当前点转弯半径
     double tempTurnX, tempTurnY; //当前点的坐标
@@ -422,7 +424,6 @@ bool QPathEvaluation::SetTurnPoint()
             //确认前后都有航迹点
             if ((m_routeLine.at(i - 1) != nullptr) && (m_routeLine.at(i + 1) != nullptr))
             {
-
                 tempCurrentPosition = i;
             }
             //取当前点的转弯半径
@@ -437,7 +438,7 @@ bool QPathEvaluation::SetTurnPoint()
             tempTurnY = m_routeLine.at(i)->y;
             //计算转弯起始点以及转弯结束点的坐标
             double tempTurnStartX, tempTurnStartY;
-            double tempTurnEndX, tempTurnEndY;
+            double tempTurnEndX, tempTurnEndY; 
             //计算转弯起始点以及转完结束点到转弯点的直线长度 单位为m
             double tempLengthP2P = abs(m_routeLine.at(tempCurrentPosition)->r * tan((m_routeLine.at(tempCurrentPosition)->turnAngle / 2) * PI / 180));
             //计算转弯结束点的坐标
@@ -471,6 +472,40 @@ bool QPathEvaluation::SetTurnPoint()
             i++;
         }
     }
+    //计算相邻两航迹点之间的航迹长度
+    QVector<double> tempLength;
+    for (int i = 0; i < m_routeLine.size(); i++)
+    {
+        if (i == 0)
+        {
+            tempLength.push_back(0.0);
+            
+        }
+        else
+        {
+            double tempx_x = m_routeLine.at(i)->x - m_routeLine.at(i - 1)->x;
+            double tempy_y = m_routeLine.at(i)->y - m_routeLine.at(i - 1)->y;
+            tempLength.push_back(sqrt(tempx_x * tempx_x + tempy_y * tempy_y));
+        }
+    }
+    //计算每个航迹点的距离起始点的长度
+    for (int i = 0; i < m_routeLine.size(); i++)
+    {
+        double templen = 0.0;
+        if (i == 0)
+        {
+           m_routeLine.at(i) == 0.0;
+        }
+        else
+        {
+            for (int j = 0; j <=i ; j++)
+            {
+                templen += tempLength.at(j);
+            }
+            m_routeLine.at(i) = templen;
+        }    
+    }
+
     //设置每个节点的父节点
     qDebug() << "设置父节点开始！！！";
     for (int i = 0; i < m_routeLine.size(); i++)
